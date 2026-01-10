@@ -11,7 +11,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true 
 // Initialize Vision Client
 let visionConfig = {};
 
-if (process.env.GOOGLE_CLOUD_VISION_CREDENTIALS) {
+if (process.env.GOOGLE_CLOUD_VISION_CREDENTIALS && process.env.GOOGLE_CLOUD_VISION_CREDENTIALS.startsWith('{')) {
     try {
         const credentials = JSON.parse(process.env.GOOGLE_CLOUD_VISION_CREDENTIALS);
         visionConfig.credentials = credentials;
@@ -19,8 +19,9 @@ if (process.env.GOOGLE_CLOUD_VISION_CREDENTIALS) {
         console.error("Failed to parse GOOGLE_CLOUD_VISION_CREDENTIALS", e);
     }
 } else {
-    // Fallback to file check
-    visionConfig.keyFilename = path.resolve(process.cwd(), 'service-account.json');
+    // Fallback to file check or skip if it's an API Key (handled by REST fallback)
+    const serviceAccountPath = path.resolve(process.cwd(), 'service-account.json');
+    visionConfig.keyFilename = serviceAccountPath;
 }
 
 const client = new vision.ImageAnnotatorClient(visionConfig);
@@ -58,16 +59,41 @@ export default async function handler(req, res) {
         let rawLines = [];
 
         try {
-            // Send Buffer directly to Vision API
+            // Priority 1: Try using the official client (Service Account)
             const [result] = await client.textDetection(buffer);
             const detections = result.textAnnotations;
             if (detections && detections.length) {
                 rawLines = detections[0].description.split('\n');
             }
         } catch (visionError) {
-            console.warn("⚠️ Vision API failed/mocking mode.", visionError.message);
-            // Mock data fallback
-            rawLines = ["MENU", "Spaghetti Carbonara - $14.50", "Tiramisu - $7.00", "Green Salad - $8.50"];
+            console.warn("⚠️ Vision Client failed, trying REST fallback with API Key...", visionError.message);
+
+            // Priority 2: Fallback to REST API using standard API Key
+            if (GOOGLE_API_KEY && !GOOGLE_API_KEY.includes('YOUR_')) {
+                try {
+                    const visionUrl = `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_API_KEY}`;
+                    const payload = {
+                        requests: [{
+                            image: { content: base64Image },
+                            features: [{ type: 'TEXT_DETECTION' }]
+                        }]
+                    };
+                    const response = await axios.post(visionUrl, payload);
+                    const annotations = response.data.responses?.[0]?.textAnnotations;
+
+                    if (annotations && annotations.length) {
+                        rawLines = annotations[0].description.split('\n');
+                    } else if (response.data.responses?.[0]?.error) {
+                        throw new Error(response.data.responses[0].error.message);
+                    }
+                } catch (restError) {
+                    console.error("❌ Google Vision REST API Error:", restError.response?.data?.error?.message || restError.message);
+                    return res.status(500).json({ error: `Google Vision API Error: ${restError.response?.data?.error?.message || restError.message}` });
+                }
+            } else {
+                console.error("❌ Google Cloud Vision Error: No working credentials found.");
+                return res.status(500).json({ error: "Google Cloud Vision API Error: Missing Service Account or API Key." });
+            }
         }
 
         if (!rawLines.length) {
@@ -88,27 +114,32 @@ export default async function handler(req, res) {
         console.log(`🔍 Searching for: ${limitedItems.join(', ')}`);
 
         const results = await Promise.all(limitedItems.map(async (item) => {
-            try {
-                if (GOOGLE_API_KEY && GOOGLE_API_KEY.includes('YOUR_')) {
-                    // Mock Search
-                    return {
-                        dish: item,
-                        image: `https://placehold.co/400x300/orange/white?text=${encodeURIComponent(item)}`
-                    };
-                }
+            if (!GOOGLE_API_KEY || GOOGLE_API_KEY.includes('YOUR_')) {
+                throw new Error("Missing Google Custom Search API Key (GOOGLE_API_KEY)");
+            }
+            if (!SEARCH_ENGINE_ID || SEARCH_ENGINE_ID.includes('YOUR_')) {
+                throw new Error("Missing Google Custom Search Engine ID (GOOGLE_CUSTOM_SEARCH_ENGINE_ID)");
+            }
 
+            try {
                 const searchUrl = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(item)}&cx=${SEARCH_ENGINE_ID}&key=${GOOGLE_API_KEY}&searchType=image&num=1`;
                 const response = await axios.get(searchUrl);
 
                 const imageUrl = response.data.items?.[0]?.link || null;
                 return { dish: item, image: imageUrl };
             } catch (err) {
-                console.error(`Error searching for ${item}:`, err.message);
-                return { dish: item, image: null };
+                console.error(`Error searching for ${item}:`, err.response?.data?.error?.message || err.message);
+                return { dish: item, image: null, error: err.response?.data?.error?.message || err.message };
             }
         }));
 
-        res.status(200).json({ results });
+        const searchErrors = results.filter(r => r.error).map(r => r.error);
+        const hasImages = results.some(r => r.image);
+
+        res.status(200).json({
+            results,
+            searchWarning: !hasImages && searchErrors.length > 0 ? searchErrors[0] : null
+        });
 
     } catch (error) {
         console.error("Serverless Function Error:", error);

@@ -5,6 +5,8 @@ import { Camera, Search, UtensilsCrossed, Zap, ArrowRight, CheckCircle2, Loader2
 const LandingPage = () => {
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState(null);
+    const [error, setError] = useState(null);
+    const [searchWarning, setSearchWarning] = useState(null);
     const fileInputRef = useRef(null);
     const resultsRef = useRef(null);
 
@@ -18,6 +20,8 @@ const LandingPage = () => {
 
         setLoading(true);
         setResults(null);
+        setError(null);
+        setSearchWarning(null);
 
         try {
             // 1. Convert to Base64
@@ -42,15 +46,17 @@ const LandingPage = () => {
             });
             const data = await response.json();
 
-            if (data.results) {
+            if (response.ok && data.results) {
                 setResults(data.results);
+                setSearchWarning(data.searchWarning);
                 setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
             } else {
-                alert("No text found or error processing image.");
+                const errorMessage = data.error || "No text found or error processing image.";
+                setError(`API Error: ${errorMessage}`);
             }
-        } catch (error) {
-            console.error(error);
-            alert("Failed to connect to the server. Make sure the local bridge is running.");
+        } catch (err) {
+            console.error(err);
+            setError(`Connection Error: ${err.message}. Make sure the local bridge is running.`);
         } finally {
             setLoading(false);
         }
@@ -79,6 +85,21 @@ const LandingPage = () => {
                 {!results && !loading && (
                     <>
                         <Hero onCameraClick={handleCameraClick} />
+                        {error && (
+                            <div style={{
+                                maxWidth: '600px', margin: '-2rem auto 2rem', padding: '1.5rem',
+                                background: 'rgba(255, 68, 68, 0.1)', border: '1px solid #ff4444',
+                                borderRadius: '12px', color: '#ff4444', textAlign: 'left',
+                                display: 'flex', alignItems: 'flex-start', gap: '1rem',
+                                position: 'relative', zIndex: 10
+                            }}>
+                                <X size={20} style={{ flexShrink: 0, cursor: 'pointer' }} onClick={() => setError(null)} />
+                                <div>
+                                    <strong style={{ display: 'block', marginBottom: '0.25rem' }}>Oops! Something went wrong:</strong>
+                                    <p style={{ margin: 0, fontSize: '0.95rem', opacity: 0.9 }}>{error}</p>
+                                </div>
+                            </div>
+                        )}
                         <HowItWorks />
                         <Features />
                     </>
@@ -104,14 +125,27 @@ const LandingPage = () => {
                 {/* Results View */}
                 {results && (
                     <div ref={resultsRef} style={{ padding: '2rem 1rem', maxWidth: '800px', margin: '0 auto' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                            <h2 style={{ fontSize: '2rem' }}>Decoded Menu</h2>
-                            <button onClick={closeResults} className="btn-secondary" style={{
-                                background: 'transparent', color: 'white', border: '1px solid var(--glass-border)',
-                                padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px'
-                            }}>
-                                <X size={18} /> Close
-                            </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <h2 style={{ fontSize: '2rem' }}>Decoded Menu</h2>
+                                <button onClick={closeResults} className="btn-secondary" style={{
+                                    background: 'transparent', color: 'white', border: '1px solid var(--glass-border)',
+                                    padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px'
+                                }}>
+                                    <X size={18} /> Close
+                                </button>
+                            </div>
+
+                            {searchWarning && (
+                                <div style={{
+                                    padding: '1rem', background: 'rgba(255, 165, 0, 0.1)',
+                                    border: '1px solid orange', borderRadius: '8px', color: 'orange',
+                                    fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '10px'
+                                }}>
+                                    <Zap size={18} />
+                                    <span><strong>Image Search restricted:</strong> {searchWarning}. Please check your API Key restrictions.</span>
+                                </div>
+                            )}
                         </div>
 
                         <div style={{ display: 'grid', gap: '1.5rem' }}>
