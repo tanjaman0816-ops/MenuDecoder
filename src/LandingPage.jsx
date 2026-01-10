@@ -8,6 +8,7 @@ const LandingPage = () => {
     const [results, setResults] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
     const [previewImage, setPreviewImage] = useState(null);
+    const [language, setLanguage] = useState('English');
     const fileInputRef = useRef(null);
     const resultsRef = useRef(null);
 
@@ -30,8 +31,9 @@ const LandingPage = () => {
 
         try {
             // 1. Compress Client-Side
-            // Returns data:image/jpeg;base64,...
+            console.log("Compressing image...");
             const compressedBase64 = await compressImage(file);
+            console.log("Compression done. Sending to API...");
             setPreviewImage(compressedBase64);
 
             // 2. Send JSON to Serverless Function
@@ -40,19 +42,29 @@ const LandingPage = () => {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ image: compressedBase64 }),
+                body: JSON.stringify({
+                    image: compressedBase64,
+                    language: language
+                }),
             });
+
+            console.log("Response status:", response.status);
             const data = await response.json();
+            console.log("Response data:", data);
 
             if (data.results) {
                 setResults(data.results);
                 setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            } else if (data.error) {
+                console.error("API Error:", data.error);
+                alert(`Error processing menu: ${data.error}`);
             } else {
-                alert("No text found or error processing image.");
+                console.warn("Unexpected response format:", data);
+                alert("Unexpected response from server. Check console for details.");
             }
         } catch (error) {
-            console.error(error);
-            alert("Failed to connect to the server. Make sure the local bridge is running.");
+            console.error("Fetch Error:", error);
+            alert(`Failed to connect to the server: ${error.message}. Make sure 'npm run api' is running.`);
         } finally {
             setLoading(false);
         }
@@ -86,7 +98,7 @@ const LandingPage = () => {
 
     return (
         <div className="landing-page">
-            <Navbar onCameraClick={handleCameraClick} />
+            <Navbar onCameraClick={handleCameraClick} language={language} setLanguage={setLanguage} />
 
             {/* Hidden File Input (Camera Trigger) */}
             <input
@@ -147,7 +159,7 @@ const LandingPage = () => {
                             <Loader2 size={64} color="hsl(var(--accent-gold))" />
                         </motion.div>
                         <h2 style={{ marginTop: '2rem', fontSize: '2rem' }}>Analyzing Menu...</h2>
-                        <p style={{ color: 'hsl(var(--text-secondary))' }}>Identifying dishes and finding delicious photos.</p>
+                        <p style={{ color: 'hsl(var(--text-secondary))' }}>Identifying dishes and translating to {language}...</p>
                     </div>
                 )}
 
@@ -160,7 +172,7 @@ const LandingPage = () => {
                         minHeight: '100vh'
                     }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                            <h2 style={{ fontSize: '2rem' }}>Decoded Menu</h2>
+                            <h2 style={{ fontSize: '2rem' }}>Decoded Menu ({language})</h2>
                             <button onClick={closeResults} className="btn-secondary" style={{
                                 background: 'transparent', color: 'white', border: '1px solid var(--glass-border)',
                                 padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px'
@@ -214,7 +226,8 @@ const LandingPage = () => {
                                             </div>
                                             <div style={{ padding: '1rem 1.5rem' }}>
                                                 <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'hsl(var(--text-primary))' }}>{item.dish}</h3>
-                                                <span style={{ fontSize: '0.9rem', color: 'hsl(var(--accent-gold))', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Decoded</span>
+                                                <p style={{ color: 'hsl(var(--text-secondary))', marginBottom: '0.5rem' }}>{item.description}</p>
+                                                <span style={{ fontSize: '0.9rem', color: 'hsl(var(--accent-gold))', fontWeight: 600 }}>{item.price}</span>
                                             </div>
                                         </motion.div>
                                     ))}
@@ -235,7 +248,7 @@ const LandingPage = () => {
 
 /* --- Components --- */
 
-const Navbar = ({ onCameraClick }) => (
+const Navbar = ({ onCameraClick, language, setLanguage }) => (
     <nav className="glass-panel" style={{
         position: 'fixed', top: '1rem', left: '1rem', right: '1rem',
         padding: '1rem 2rem', zIndex: 50,
@@ -247,9 +260,30 @@ const Navbar = ({ onCameraClick }) => (
                 Menu Decoder
             </span>
         </div>
-        <button onClick={onCameraClick} className="btn-primary" style={{ padding: '8px 20px', fontSize: '0.9rem' }}>
-            Scan Menu
-        </button>
+
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                style={{
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    color: 'hsl(var(--text-primary))',
+                    border: '1px solid var(--glass-border)',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    outline: 'none'
+                }}
+            >
+                <option value="English" style={{ color: 'black' }}>English</option>
+                <option value="Chinese (Simplified)" style={{ color: 'black' }}>中文 (Chinese)</option>
+                <option value="Malay" style={{ color: 'black' }}>Bahasa Melayu</option>
+            </select>
+
+            <button onClick={onCameraClick} className="btn-primary" style={{ padding: '8px 20px', fontSize: '0.9rem' }}>
+                Scan Menu
+            </button>
+        </div>
     </nav>
 );
 
