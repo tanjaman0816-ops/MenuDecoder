@@ -1,5 +1,4 @@
-import vision from '@google-cloud/vision';
-import axios from 'axios';
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import dotenv from 'dotenv';
 import path from 'path';
 import process from 'process';
@@ -8,25 +7,14 @@ import process from 'process';
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true });
 
-// Initialize Vision Client
-let visionConfig = {};
+const apiKey = process.env.GOOGLE_API_KEY;
 
-if (process.env.GOOGLE_CLOUD_VISION_CREDENTIALS) {
-    try {
-        const credentials = JSON.parse(process.env.GOOGLE_CLOUD_VISION_CREDENTIALS);
-        visionConfig.credentials = credentials;
-    } catch (e) {
-        console.error("Failed to parse GOOGLE_CLOUD_VISION_CREDENTIALS", e);
-    }
+let genAI = null;
+if (apiKey) {
+    genAI = new GoogleGenerativeAI(apiKey);
 } else {
-    // Fallback to file check
-    visionConfig.keyFilename = path.resolve(process.cwd(), 'service-account.json');
+    console.error("❌ GOOGLE_API_KEY is missing from environment variables.");
 }
-
-const client = new vision.ImageAnnotatorClient(visionConfig);
-
-const GOOGLE_API_KEY = process.env.GOOGLE_CUSTOM_SEARCH_KEY || process.env.GOOGLE_API_KEY;
-const SEARCH_ENGINE_ID = process.env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID || process.env.SEARCH_ENGINE_ID;
 
 export default async function handler(req, res) {
     // Enable CORS for local testing/cross-origin
@@ -44,74 +32,95 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { image } = req.body; // Expecting base64 string
+        if (!genAI) {
+            throw new Error("Gemini API Key not configured.");
+        }
+
+        const { image, language = "English" } = req.body; // Default to English
         if (!image) {
             return res.status(400).json({ error: 'No image provided' });
         }
 
-        console.log("📸 Received Base64 image for decoding...");
+        console.log(`📸 Received Base64 image for Gemini decoding. Language: ${language}`);
 
-        // Remove header if present (e.g., "data:image/jpeg;base64,")
+        // Remove header if present
         const base64Image = image.replace(/^data:image\/\w+;base64,/, '');
-        const buffer = Buffer.from(base64Image, 'base64');
 
-        let rawLines = [];
+        // Define strict response schema
+        const schema = {
+            description: "List of menu items",
+            type: SchemaType.ARRAY,
+            items: {
+                type: SchemaType.OBJECT,
+                properties: {
+                    dish: {
+                        type: SchemaType.STRING,
+                        description: "Name of the dish",
+                        nullable: false,
+                    },
+                    price: {
+                        type: SchemaType.STRING,
+                        description: "Price of the dish",
+                        nullable: false,
+                    },
+                    description: {
+                        type: SchemaType.STRING,
+                        description: "Short appetizing description of the dish",
+                        nullable: false,
+                    },
+                },
+                required: ["dish", "price", "description"],
+            },
+        };
 
-        try {
-            // Send Buffer directly to Vision API
-            const [result] = await client.textDetection(buffer);
-            const detections = result.textAnnotations;
-            if (detections && detections.length) {
-                rawLines = detections[0].description.split('\n');
+        // Using Gemini 2.5 Flash as confirmed by model list
+        const model = genAI.getGenerativeModel({
+            model: "models/gemini-2.5-flash",
+            generationConfig: {
+                responseMimeType: "application/json",
+                responseSchema: schema,
             }
-        } catch (visionError) {
-            console.warn("⚠️ Vision API failed/mocking mode.", visionError.message);
-            // Mock data fallback
-            rawLines = ["MENU", "Spaghetti Carbonara - $14.50", "Tiramisu - $7.00", "Green Salad - $8.50"];
-        }
-
-        if (!rawLines.length) {
-            rawLines = ["MENU", "Spaghetti Carbonara - $14.50", "Tiramisu - $7.00"];
-        }
-
-        // Filtering Logic
-        const menuItems = rawLines.filter(line => {
-            const cleanLine = line.trim();
-            if (cleanLine.length < 4) return false;
-            if (/^\d+$/.test(cleanLine)) return false;
-            if (cleanLine.includes('$') || cleanLine.includes('€') || cleanLine.includes('£')) return false;
-            if (/^ethers|^starters|^mains|^desserts|^drinks|^menu$/i.test(cleanLine)) return false;
-            return true;
         });
 
-        const limitedItems = menuItems.slice(0, 5);
-        console.log(`🔍 Searching for: ${limitedItems.join(', ')}`);
+        const prompt = `
+        Analyze this menu image and identify the dishes listed.
+        
+        Important: Translate the 'dish' name and 'description' into ${language}.
+        If the menu is already in ${language}, keep it as is.
+        Ensure the 'price' is captured accurate to the image.
+        `;
 
-        const results = await Promise.all(limitedItems.map(async (item) => {
-            try {
-                if (GOOGLE_API_KEY && GOOGLE_API_KEY.includes('YOUR_')) {
-                    // Mock Search
-                    return {
-                        dish: item,
-                        image: `https://placehold.co/400x300/orange/white?text=${encodeURIComponent(item)}`
-                    };
-                }
+        const imagePart = {
+            inlineData: {
+                data: base64Image,
+                mimeType: "image/jpeg",
+            },
+        };
 
-                const searchUrl = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(item)}&cx=${SEARCH_ENGINE_ID}&key=${GOOGLE_API_KEY}&searchType=image&num=1`;
-                const response = await axios.get(searchUrl);
+        const result = await model.generateContent([prompt, imagePart]);
+        const response = await result.response;
+        const text = response.text();
 
-                const imageUrl = response.data.items?.[0]?.link || null;
-                return { dish: item, image: imageUrl };
-            } catch (err) {
-                console.error(`Error searching for ${item}:`, err.message);
-                return { dish: item, image: null };
-            }
+        console.log("Gemini Structured Response:", text);
+
+        let menuItems = [];
+        try {
+            menuItems = JSON.parse(text);
+        } catch (e) {
+            console.error("Failed to parse Gemini JSON:", e);
+            return res.status(500).json({ error: "Failed to parse menu data from AI" });
+        }
+
+        // Add null image placeholders
+        const results = menuItems.map(item => ({
+            ...item,
+            image: null
         }));
 
         res.status(200).json({ results });
 
     } catch (error) {
         console.error("Serverless Function Error:", error);
-        res.status(500).json({ error: "Processing failed" });
+        res.status(500).json({ error: "Processing failed: " + error.message });
     }
 }
