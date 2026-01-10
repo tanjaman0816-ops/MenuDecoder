@@ -1,0 +1,81 @@
+:root {
+  /* Dynamic Palette - HSL */
+  --bg-deep: 240 10% 8%;   /* Very dark charcoal/black */
+  --bg-card: 240 12% 12%;  /* Slightly lighter for cards */
+  --text-primary: 0 0% 98%;
+  --text-secondary: 240 5% 70%;
+  
+  --accent-gold: 45 95% 55%;  /* Saffron/Gold - "Delicious" */
+  --accent-basil: 140 60% 50%; /* Fresh Green */
+  --accent-berry: 330 70% 55%; /* Rich Red/Pink */
+
+  /* Glassmorphism */
+  --glass-bg: hsla(240, 12%, 12%, 0.6);
+  --glass-border: hsla(0, 0%, 100%, 0.1);
+  --glass-blur: blur(12px);
+
+  /* Spacing */
+  --spacing-xs: 0.5rem;
+  --spacing-sm: 1rem;
+  --spacing-md: 1.5rem;
+  --spacing-lg: 2rem;
+  --spacing-xl: 4rem;
+
+  /* Type */
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-display: 'Outfit', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: hsl(var(--bg-deep));
+  color: hsl(var(--text-primary));
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  line-height: 1.2;
+}
+
+/* Utilities */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, hsl(var(--accent-gold)), hsl(var(--accent-berry)));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, hsl(var(--accent-gold)), hsl(var(--accent-berry)));
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 99px;
+  font-weight: 600;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.camera-input {
+  display: none;
+}
