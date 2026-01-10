@@ -1,22 +1,164 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Camera, Search, UtensilsCrossed, Zap, ArrowRight, CheckCircle2 } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Camera, Search, UtensilsCrossed, Zap, ArrowRight, CheckCircle2, Loader2, X } from 'lucide-react';
 
 const LandingPage = () => {
+    const [loading, setLoading] = useState(false);
+    const [results, setResults] = useState(null);
+    const fileInputRef = useRef(null);
+    const resultsRef = useRef(null);
+
+    const handleCameraClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setLoading(true);
+        setResults(null);
+
+        try {
+            // 1. Convert to Base64
+            const toBase64 = (file) => new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+
+            const base64Image = await toBase64(file);
+
+            // 2. Send JSON to Serverless Function
+            // Note: We use the local bridge port (3000) for development. 
+            // In production (Vercel), this would be just '/api/decode-menu'
+            const response = await fetch('http://localhost:3000/api/decode-menu', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ image: base64Image }),
+            });
+            const data = await response.json();
+
+            if (data.results) {
+                setResults(data.results);
+                setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            } else {
+                alert("No text found or error processing image.");
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Failed to connect to the server. Make sure the local bridge is running.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const closeResults = () => {
+        setResults(null);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
     return (
         <div className="landing-page">
-            <Navbar />
-            <Hero />
-            <HowItWorks />
-            <Features />
-            <Footer />
+            <Navbar onCameraClick={handleCameraClick} />
+
+            {/* Hidden File Input (Camera Trigger) */}
+            <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={handleFileChange}
+            />
+
+            <main>
+                {!results && !loading && (
+                    <>
+                        <Hero onCameraClick={handleCameraClick} />
+                        <HowItWorks />
+                        <Features />
+                    </>
+                )}
+
+                {/* Loading State */}
+                {loading && (
+                    <div style={{
+                        minHeight: '80vh', display: 'flex', flexDirection: 'column',
+                        justifyContent: 'center', alignItems: 'center', textAlign: 'center'
+                    }}>
+                        <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                        >
+                            <Loader2 size={64} color="hsl(var(--accent-gold))" />
+                        </motion.div>
+                        <h2 style={{ marginTop: '2rem', fontSize: '2rem' }}>Analyzing Menu...</h2>
+                        <p style={{ color: 'hsl(var(--text-secondary))' }}>Identifying dishes and finding delicious photos.</p>
+                    </div>
+                )}
+
+                {/* Results View */}
+                {results && (
+                    <div ref={resultsRef} style={{ padding: '2rem 1rem', maxWidth: '800px', margin: '0 auto' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                            <h2 style={{ fontSize: '2rem' }}>Decoded Menu</h2>
+                            <button onClick={closeResults} className="btn-secondary" style={{
+                                background: 'transparent', color: 'white', border: '1px solid var(--glass-border)',
+                                padding: '8px 16px', borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px'
+                            }}>
+                                <X size={18} /> Close
+                            </button>
+                        </div>
+
+                        <div style={{ display: 'grid', gap: '1.5rem' }}>
+                            {results.map((item, index) => (
+                                <motion.div
+                                    key={index}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: index * 0.1 }}
+                                    className="glass-panel"
+                                    style={{
+                                        display: 'flex', alignItems: 'center', overflow: 'hidden',
+                                        background: 'hsla(240, 12%, 14%, 0.8)'
+                                    }}
+                                >
+                                    <div style={{ width: '120px', height: '120px', flexShrink: 0, background: '#000' }}>
+                                        {item.image ? (
+                                            <img src={item.image} alt={item.dish} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        ) : (
+                                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>
+                                                <UtensilsCrossed size={32} />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div style={{ padding: '1rem 1.5rem' }}>
+                                        <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'hsl(var(--text-primary))' }}>{item.dish}</h3>
+                                        <span style={{ fontSize: '0.9rem', color: 'hsl(var(--accent-gold))', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Decoded</span>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
+
+                        <button onClick={handleCameraClick} className="btn-primary" style={{ width: '100%', marginTop: '3rem', justifyContent: 'center', display: 'flex' }}>
+                            <Camera size={20} style={{ marginRight: '10px' }} /> Scan Another Menu
+                        </button>
+                    </div>
+                )}
+            </main>
+
+            {!loading && !results && <Footer />}
         </div>
     );
 };
 
 /* --- Components --- */
 
-const Navbar = () => (
+const Navbar = ({ onCameraClick }) => (
     <nav className="glass-panel" style={{
         position: 'fixed', top: '1rem', left: '1rem', right: '1rem',
         padding: '1rem 2rem', zIndex: 50,
@@ -28,13 +170,13 @@ const Navbar = () => (
                 Menu Decoder
             </span>
         </div>
-        <button className="btn-primary" style={{ padding: '8px 20px', fontSize: '0.9rem' }}>
-            Get Started
+        <button onClick={onCameraClick} className="btn-primary" style={{ padding: '8px 20px', fontSize: '0.9rem' }}>
+            Scan Menu
         </button>
     </nav>
 );
 
-const Hero = () => {
+const Hero = ({ onCameraClick }) => {
     return (
         <section style={{
             minHeight: '100vh',
@@ -76,7 +218,7 @@ const Hero = () => {
                 </p>
 
                 <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-                    <button className="btn-primary">
+                    <button onClick={onCameraClick} className="btn-primary">
                         Decode a Menu <ArrowRight size={18} style={{ display: 'inline', marginLeft: '8px' }} />
                     </button>
                 </div>
