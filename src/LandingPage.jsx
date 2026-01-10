@@ -7,6 +7,7 @@ const LandingPage = () => {
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [previewImage, setPreviewImage] = useState(null);
     const fileInputRef = useRef(null);
     const resultsRef = useRef(null);
 
@@ -25,11 +26,13 @@ const LandingPage = () => {
 
         setLoading(true);
         setResults(null);
+        setPreviewImage(null);
 
         try {
             // 1. Compress Client-Side
             // Returns data:image/jpeg;base64,...
             const compressedBase64 = await compressImage(file);
+            setPreviewImage(compressedBase64);
 
             // 2. Send JSON to Serverless Function
             const response = await fetch('http://localhost:3000/api/decode-menu', {
@@ -150,7 +153,12 @@ const LandingPage = () => {
 
                 {/* Results View */}
                 {results && (
-                    <div ref={resultsRef} style={{ padding: '2rem 1rem', maxWidth: '800px', margin: '0 auto' }}>
+                    <div ref={resultsRef} style={{
+                        padding: '2rem 1rem',
+                        maxWidth: '1200px',
+                        margin: '0 auto',
+                        minHeight: '100vh'
+                    }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                             <h2 style={{ fontSize: '2rem' }}>Decoded Menu</h2>
                             <button onClick={closeResults} className="btn-secondary" style={{
@@ -161,39 +169,61 @@ const LandingPage = () => {
                             </button>
                         </div>
 
-                        <div style={{ display: 'grid', gap: '1.5rem' }}>
-                            {results.map((item, index) => (
-                                <motion.div
-                                    key={index}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: index * 0.1 }}
-                                    className="glass-panel"
-                                    style={{
-                                        display: 'flex', alignItems: 'center', overflow: 'hidden',
-                                        background: 'hsla(240, 12%, 14%, 0.8)'
-                                    }}
-                                >
-                                    <div style={{ width: '120px', height: '120px', flexShrink: 0, background: '#000' }}>
-                                        {item.image ? (
-                                            <img src={item.image} alt={item.dish} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                        ) : (
-                                            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>
-                                                <UtensilsCrossed size={32} />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div style={{ padding: '1rem 1.5rem' }}>
-                                        <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'hsl(var(--text-primary))' }}>{item.dish}</h3>
-                                        <span style={{ fontSize: '0.9rem', color: 'hsl(var(--accent-gold))', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Decoded</span>
-                                    </div>
-                                </motion.div>
-                            ))}
-                        </div>
+                        <div className="results-grid" style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
+                            gap: '2rem',
+                            alignItems: 'start'
+                        }}>
+                            {/* Left Column: Original Image (Sticky) */}
+                            <div style={{ position: 'sticky', top: '100px' }}>
+                                <h3 style={{ marginBottom: '1rem', color: 'hsl(var(--text-secondary))' }}>Original Menu</h3>
+                                <div className="glass-panel" style={{ padding: '0.5rem', overflow: 'hidden' }}>
+                                    <img
+                                        src={previewImage}
+                                        alt="Original Menu"
+                                        style={{ width: '100%', borderRadius: '12px', display: 'block' }}
+                                    />
+                                </div>
+                            </div>
 
-                        <button onClick={handleCameraClick} className="btn-primary" style={{ width: '100%', marginTop: '3rem', justifyContent: 'center', display: 'flex' }}>
-                            <Camera size={20} style={{ marginRight: '10px' }} /> Scan Another Menu
-                        </button>
+                            {/* Right Column: Decoded Items */}
+                            <div>
+                                <h3 style={{ marginBottom: '1rem', color: 'hsl(var(--text-secondary))' }}>Identified Dishes</h3>
+                                <div style={{ display: 'grid', gap: '1.5rem' }}>
+                                    {results.map((item, index) => (
+                                        <motion.div
+                                            key={index}
+                                            initial={{ opacity: 0, x: 20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: index * 0.1 }}
+                                            className="glass-panel"
+                                            style={{
+                                                display: 'flex', alignItems: 'center', overflow: 'hidden',
+                                                background: 'hsla(240, 12%, 14%, 0.8)'
+                                            }}
+                                        >
+                                            <div style={{ width: '120px', height: '120px', flexShrink: 0, background: '#000' }}>
+                                                {item.image ? (
+                                                    <img src={item.image} alt={item.dish} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                ) : (
+                                                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>
+                                                        <UtensilsCrossed size={32} />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div style={{ padding: '1rem 1.5rem' }}>
+                                                <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'hsl(var(--text-primary))' }}>{item.dish}</h3>
+                                                <span style={{ fontSize: '0.9rem', color: 'hsl(var(--accent-gold))', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Decoded</span>
+                                            </div>
+                                        </motion.div>
+                                    ))}
+                                </div>
+                                <button onClick={handleCameraClick} className="btn-primary" style={{ width: '100%', marginTop: '3rem', justifyContent: 'center', display: 'flex' }}>
+                                    <Camera size={20} style={{ marginRight: '10px' }} /> Scan Another Menu
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
             </main>
