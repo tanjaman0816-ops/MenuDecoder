@@ -59,16 +59,7 @@ export default async function handler(req, res) {
         let rawLines = [];
 
         try {
-            // Priority 1: Try using the official client (Service Account)
-            const [result] = await client.textDetection(buffer);
-            const detections = result.textAnnotations;
-            if (detections && detections.length) {
-                rawLines = detections[0].description.split('\n');
-            }
-        } catch (visionError) {
-            console.warn("⚠️ Vision Client failed, trying REST fallback with API Key...", visionError.message);
-
-            // Priority 2: Fallback to REST API using standard API Key
+            // Priority 1: Try REST API using standard API Key (Simplest setup)
             if (GOOGLE_API_KEY && !GOOGLE_API_KEY.includes('YOUR_')) {
                 try {
                     const visionUrl = `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_API_KEY}`;
@@ -87,12 +78,26 @@ export default async function handler(req, res) {
                         throw new Error(response.data.responses[0].error.message);
                     }
                 } catch (restError) {
-                    console.error("❌ Google Vision REST API Error:", restError.response?.data?.error?.message || restError.message);
-                    return res.status(500).json({ error: `Google Vision API Error: ${restError.response?.data?.error?.message || restError.message}` });
+                    throw restError; // Pass to outer catch for Priority 2
                 }
             } else {
-                console.error("❌ Google Cloud Vision Error: No working credentials found.");
-                return res.status(500).json({ error: "Google Cloud Vision API Error: Missing Service Account or API Key." });
+                throw new Error("No API Key found");
+            }
+        } catch (error) {
+            console.warn("⚠️ API Key method failed, trying Service Account fallback...", error.message);
+
+            // Priority 2: Fallback to official client (Service Account)
+            try {
+                const [result] = await client.textDetection(buffer);
+                const detections = result.textAnnotations;
+                if (detections && detections.length) {
+                    rawLines = detections[0].description.split('\n');
+                }
+            } catch (visionError) {
+                console.error("❌ All Google Vision methods failed.");
+                return res.status(500).json({
+                    error: `Google Vision API Error: ${visionError.message}. Ensure your GOOGLE_API_KEY is correct or service-account.json is valid.`
+                });
             }
         }
 
