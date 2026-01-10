@@ -1,10 +1,12 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Search, UtensilsCrossed, Zap, ArrowRight, CheckCircle2, Loader2, X } from 'lucide-react';
+import { Camera, Search, UtensilsCrossed, Zap, ArrowRight, CheckCircle2, Loader2, X, UploadCloud } from 'lucide-react';
+import { compressImage } from './utils/imageUtils';
 
 const LandingPage = () => {
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState(null);
+    const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef(null);
     const resultsRef = useRef(null);
 
@@ -12,33 +14,30 @@ const LandingPage = () => {
         fileInputRef.current?.click();
     };
 
-    const handleFileChange = async (e) => {
-        const file = e.target.files?.[0];
+    const processFile = async (file) => {
         if (!file) return;
+
+        // Basic validation
+        if (!file.type.startsWith('image/')) {
+            alert('Please upload an image file (JPG, PNG).');
+            return;
+        }
 
         setLoading(true);
         setResults(null);
 
         try {
-            // 1. Convert to Base64
-            const toBase64 = (file) => new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = error => reject(error);
-            });
-
-            const base64Image = await toBase64(file);
+            // 1. Compress Client-Side
+            // Returns data:image/jpeg;base64,...
+            const compressedBase64 = await compressImage(file);
 
             // 2. Send JSON to Serverless Function
-            // Note: We use the local bridge port (3000) for development. 
-            // In production (Vercel), this would be just '/api/decode-menu'
             const response = await fetch('http://localhost:3000/api/decode-menu', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ image: base64Image }),
+                body: JSON.stringify({ image: compressedBase64 }),
             });
             const data = await response.json();
 
@@ -54,6 +53,27 @@ const LandingPage = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleFileChange = (e) => {
+        processFile(e.target.files?.[0]);
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setIsDragging(false);
+        const file = e.dataTransfer.files?.[0];
+        processFile(file);
     };
 
     const closeResults = () => {
@@ -77,11 +97,38 @@ const LandingPage = () => {
 
             <main>
                 {!results && !loading && (
-                    <>
+                    <div
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        style={{ position: 'relative' }}
+                    >
+                        {/* Drag Overlay */}
+                        <AnimatePresence>
+                            {isDragging && (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    style={{
+                                        position: 'fixed', inset: 0, zIndex: 100,
+                                        background: 'rgba(0,0,0,0.85)',
+                                        backdropFilter: 'blur(8px)',
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                        border: '4px dashed var(--accent-gold)', margin: '1rem', borderRadius: '24px',
+                                        pointerEvents: 'none' // Let events bubble to the div below
+                                    }}
+                                >
+                                    <UploadCloud size={64} color="var(--accent-gold)" />
+                                    <h2 style={{ marginTop: '2rem', fontSize: '2.5rem', color: 'white' }}>Drop Menu Here</h2>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
                         <Hero onCameraClick={handleCameraClick} />
                         <HowItWorks />
                         <Features />
-                    </>
+                    </div>
                 )}
 
                 {/* Loading State */}
