@@ -75,7 +75,7 @@ export default async function handler(req, res) {
 
         // Using Gemini 2.5 Flash as confirmed by model list
         const model = genAI.getGenerativeModel({
-            model: "gemini-2.5-flash",
+            model: "models/gemini-2.5-flash",
             generationConfig: {
                 responseMimeType: "application/json",
                 responseSchema: schema,

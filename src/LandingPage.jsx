@@ -13,7 +13,10 @@ const LandingPage = () => {
     const resultsRef = useRef(null);
 
     const handleCameraClick = () => {
-        fileInputRef.current?.click();
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+            fileInputRef.current.click();
+        }
     };
 
     const processFile = async (file) => {
@@ -71,7 +74,10 @@ const LandingPage = () => {
     };
 
     const handleFileChange = (e) => {
-        processFile(e.target.files?.[0]);
+        const file = e.target.files?.[0];
+        if (file) {
+            processFile(file);
+        }
     };
 
     const handleDragOver = (e) => {
