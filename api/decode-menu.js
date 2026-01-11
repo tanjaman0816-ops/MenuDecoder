@@ -98,32 +98,21 @@ export default async function handler(req, res) {
                     }
                 }
 
-                if (!imageUrl) {
-                    const blockReason = imageResponse.promptFeedback?.blockReason;
-                    const finishReason = imageResponse.candidates?.[0]?.finishReason;
-                    console.warn(`⚠️ No image for: ${item.dish} | Block: ${blockReason || 'N/A'} | Finish: ${finishReason || 'N/A'}`);
-
-                    return {
-                        ...item,
-                        image: null,
-                        error: blockReason ? "Content blocked" : "Generation unavailable"
-                    };
-                }
-
                 return { ...item, image: imageUrl };
             } catch (imageError) {
-                console.error(`❌ Global error generating image for ${item.dish}:`, imageError);
-                return { ...item, image: null, error: "Generation failed" };
+                console.error(`Failed to generate image for ${item.dish}:`, imageError);
+                return { ...item, image: null, error: imageError.message };
             }
         });
 
         const results = await Promise.all(itemPromises);
 
+        const searchErrors = results.filter(r => r.error).map(r => r.error);
         const hasImages = results.some(r => r.image);
 
         res.status(200).json({
             results,
-            searchWarning: !hasImages ? "Some images couldn't be generated at this time." : null
+            searchWarning: !hasImages && searchErrors.length > 0 ? searchErrors[0] : null
         });
 
     } catch (error) {

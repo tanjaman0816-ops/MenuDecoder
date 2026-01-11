@@ -229,54 +229,25 @@ const LandingPage = () => {
                                             transition={{ delay: index * 0.1 }}
                                             className="glass-panel"
                                             style={{
-                                                display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                                                display: 'flex', alignItems: 'center', overflow: 'hidden',
                                                 background: 'hsla(240, 12%, 14%, 0.8)',
                                                 padding: '1rem',
-                                                gap: '1rem'
+                                                gap: '1.5rem'
                                             }}
                                         >
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                                                <div style={{ width: '120px', height: '120px', flexShrink: 0, background: '#000', borderRadius: '12px', overflow: 'hidden', position: 'relative' }}>
-                                                    {item.image ? (
-                                                        <img
-                                                            src={item.image}
-                                                            alt={item.dish}
-                                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                            onError={(e) => {
-                                                                console.error(`Image failed to load for ${item.dish}`);
-                                                                e.target.style.display = 'none';
-                                                                e.target.nextSibling.style.display = 'flex';
-                                                            }}
-                                                        />
-                                                    ) : null}
-                                                    <div style={{
-                                                        width: '100%', height: '100%',
-                                                        display: item.image ? 'none' : 'flex',
-                                                        alignItems: 'center', justifyContent: 'center',
-                                                        color: '#555', background: 'rgba(0,0,0,0.5)'
-                                                    }}>
+                                            <div style={{ width: '120px', height: '120px', flexShrink: 0, background: '#000', borderRadius: '12px', overflow: 'hidden' }}>
+                                                {item.image ? (
+                                                    <img src={item.image} alt={item.dish} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                ) : (
+                                                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>
                                                         <UtensilsCrossed size={32} />
                                                     </div>
-                                                </div>
-                                                <div style={{ flex: 1 }}>
-                                                    <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'hsl(var(--text-primary))' }}>{item.dish}</h3>
-                                                    <p style={{ color: 'hsl(var(--text-secondary))', marginBottom: '0.5rem', fontSize: '0.95rem' }}>{item.description}</p>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                        <span style={{ fontSize: '0.9rem', color: 'hsl(var(--accent-gold))', fontWeight: 600 }}>{item.price}</span>
-                                                        {item.error && (
-                                                            <span style={{
-                                                                fontSize: '0.8rem',
-                                                                color: 'hsl(var(--accent-berry))',
-                                                                opacity: 0.8,
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                gap: '4px'
-                                                            }}>
-                                                                <ImageIcon size={12} /> Failed to generate
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
+                                                )}
+                                            </div>
+                                            <div style={{ padding: '0' }}>
+                                                <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'hsl(var(--text-primary))' }}>{item.dish}</h3>
+                                                <p style={{ color: 'hsl(var(--text-secondary))', marginBottom: '0.5rem' }}>{item.description}</p>
+                                                <span style={{ fontSize: '0.9rem', color: 'hsl(var(--accent-gold))', fontWeight: 600 }}>{item.price}</span>
                                             </div>
                                         </motion.div>
                                     ))}
@@ -284,7 +255,6 @@ const LandingPage = () => {
                                 <button onClick={handleCameraClick} className="btn-primary" style={{ width: '100%', marginTop: '3rem', justifyContent: 'center', display: 'flex' }}>
                                     <Camera size={20} style={{ marginRight: '10px' }} /> Scan Another Menu
                                 </button>
-
                             </div>
                         </div>
                     </div>
@@ -458,7 +428,7 @@ const Hero = ({ onCameraClick }) => {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                     >
-                        Decode a menu <ArrowRight size={20} style={{ display: 'inline', marginLeft: '8px', verticalAlign: 'text-bottom' }} />
+                        Decode a Key <ArrowRight size={20} style={{ display: 'inline', marginLeft: '8px', verticalAlign: 'text-bottom' }} />
                     </motion.button>
                 </div>
             </motion.div>
