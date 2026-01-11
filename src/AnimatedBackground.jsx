@@ -1,15 +1,17 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 
 const AnimatedBackground = () => {
-    // Generate random particles for "seasoning/dust" effect
-    const particles = Array.from({ length: 20 }).map((_, i) => ({
-        id: i,
-        x: Math.random() * 100,
-        y: Math.random() * 100,
-        size: Math.random() * 3 + 1,
-        duration: Math.random() * 20 + 10,
-    }));
+    // Generate random particles once and memoize to prevent re-renders triggering new randoms
+    const particles = useMemo(() =>
+        Array.from({ length: 20 }).map((_, i) => ({
+            id: i,
+            x: Math.random() * 100,
+            y: Math.random() * 100,
+            size: Math.random() * 3 + 1,
+            duration: Math.random() * 20 + 10,
+        })), []
+    );
 
     return (
         <div style={{

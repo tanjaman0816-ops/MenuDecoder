@@ -1,11 +1,4 @@
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
-import dotenv from 'dotenv';
-import path from 'path';
-import process from 'process';
-
-// Load env vars from .env and .env.local
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true });
 
 let genAI = null;
 
