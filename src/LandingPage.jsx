@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Search, UtensilsCrossed, Zap, ArrowRight, CheckCircle2, Loader2, X, UploadCloud } from 'lucide-react';
+import { Camera, Search, UtensilsCrossed, Zap, ArrowRight, CheckCircle2, Loader2, X, UploadCloud, ChefHat, ImageIcon } from 'lucide-react';
 import { compressImage } from './utils/imageUtils';
 
 const LandingPage = () => {
@@ -9,6 +9,7 @@ const LandingPage = () => {
     const [isDragging, setIsDragging] = useState(false);
     const [previewImage, setPreviewImage] = useState(null);
     const [language, setLanguage] = useState('English');
+    const [searchWarning, setSearchWarning] = useState(null);
     const fileInputRef = useRef(null);
     const resultsRef = useRef(null);
 
@@ -222,10 +223,12 @@ const LandingPage = () => {
                                             className="glass-panel"
                                             style={{
                                                 display: 'flex', alignItems: 'center', overflow: 'hidden',
-                                                background: 'hsla(240, 12%, 14%, 0.8)'
+                                                background: 'hsla(240, 12%, 14%, 0.8)',
+                                                padding: '1rem',
+                                                gap: '1.5rem'
                                             }}
                                         >
-                                            <div style={{ width: '120px', height: '120px', flexShrink: 0, background: '#000' }}>
+                                            <div style={{ width: '120px', height: '120px', flexShrink: 0, background: '#000', borderRadius: '12px', overflow: 'hidden' }}>
                                                 {item.image ? (
                                                     <img src={item.image} alt={item.dish} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                 ) : (
@@ -234,7 +237,7 @@ const LandingPage = () => {
                                                     </div>
                                                 )}
                                             </div>
-                                            <div style={{ padding: '1rem 1.5rem' }}>
+                                            <div style={{ padding: '0' }}>
                                                 <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'hsl(var(--text-primary))' }}>{item.dish}</h3>
                                                 <p style={{ color: 'hsl(var(--text-secondary))', marginBottom: '0.5rem' }}>{item.description}</p>
                                                 <span style={{ fontSize: '0.9rem', color: 'hsl(var(--accent-gold))', fontWeight: 600 }}>{item.price}</span>
