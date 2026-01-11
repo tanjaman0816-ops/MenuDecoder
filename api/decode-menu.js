@@ -1,13 +1,18 @@
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 
 let genAI = null;
-if (apiKey) {
-    genAI = new GoogleGenerativeAI(apiKey);
-} else {
-    console.error("❌ GOOGLE_API_KEY is missing from environment variables.");
-}
 
 export default async function handler(req, res) {
+    // Initialize Gemini lazily
+    if (!genAI) {
+        const apiKey = process.env.GOOGLE_API_KEY;
+        if (apiKey) {
+            genAI = new GoogleGenerativeAI(apiKey);
+        } else {
+            console.error("❌ GOOGLE_API_KEY is missing from environment variables.");
+        }
+    }
+
     // 1. Unified Request Handling (Standard Request vs Express)
     const method = req.method || 'POST';
     const body = req.json ? await req.json() : req.body;

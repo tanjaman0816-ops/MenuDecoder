@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "api": "node local-api.js",
-    "netlify-dev": "netlify dev"
+    "vercel-dev": "vercel dev"
   },
   "engines": {
     "node": ">=20.0.0"
