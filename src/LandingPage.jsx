@@ -69,7 +69,14 @@ const LandingPage = () => {
             }
         } catch (error) {
             console.error("Fetch Error:", error);
-            alert(`Failed to connect to the server: ${error.message}. Make sure 'npm run api' is running.`);
+            const isLocal = window.location.hostname === 'localhost';
+            let msg = `Failed to connect to the server: ${error.message}.`;
+            if (isLocal) {
+                msg += " Make sure 'npm run api' is running.";
+            } else {
+                msg += " Please check your internet connection and try again.";
+            }
+            alert(msg);
         } finally {
             setLoading(false);
         }

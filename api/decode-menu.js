@@ -7,41 +7,64 @@ import process from 'process';
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local'), override: true });
 
-const apiKey = process.env.GOOGLE_API_KEY;
-
 let genAI = null;
-if (apiKey) {
-    genAI = new GoogleGenerativeAI(apiKey);
-} else {
-    console.error("❌ GOOGLE_API_KEY is missing from environment variables.");
-}
 
-export default async function handler(req, res) {
-    // 1. Unified Request Handling (Standard Request vs Express)
+/**
+ * Netlify Functions v2 Handler
+ * Also supports Express via the 'res' argument in our local bridge
+ */
+export default async function handler(req, resOrContext) {
+    // 1. Unified Request Handling
     const method = req.method || 'POST';
-    const body = req.json ? await req.json() : req.body;
 
-    // helper to send response
-    const send = async (data, status = 200) => {
-        if (res && res.status) {
-            return res.status(status).json(data);
-        }
-        return new Response(JSON.stringify(data), {
-            status,
-            headers: { 'Content-Type': 'application/json' }
-        });
-    };
-
-    // CORS & Options
-    if (res && res.setHeader) {
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    // 2. Parse Body (Netlify v2 provides .json(), Express provides .body)
+    let body;
+    try {
+        body = req.json ? await req.json() : (req.body || {});
+    } catch (e) {
+        console.error("Failed to parse request body:", e);
+        body = {};
     }
 
+    // 3. Environment Variable Initialization (Lazy)
+    // Netlify suggests initializing inside the handler for better reliability
+    if (!genAI) {
+        const apiKey = process.env.GOOGLE_API_KEY;
+        if (apiKey) {
+            genAI = new GoogleGenerativeAI(apiKey);
+        } else {
+            console.error("❌ GOOGLE_API_KEY is missing from environment variables.");
+        }
+    }
+
+    // 4. Helper to send response (CORS included)
+    const send = async (data, status = 200) => {
+        const headers = {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type'
+        };
+
+        // Express / Local Bridge
+        if (resOrContext && typeof resOrContext.status === 'function') {
+            return resOrContext.status(status).json(data);
+        }
+
+        // Netlify / Standard Response
+        return new Response(JSON.stringify(data), { status, headers });
+    };
+
+    // 5. CORS / OPTIONS handling
     if (method === 'OPTIONS') {
-        if (res && res.status) return res.status(200).end();
-        return new Response(null, { status: 200 });
+        if (resOrContext && typeof resOrContext.status === 'function') return resOrContext.status(200).end();
+        return new Response(null, {
+            status: 200, headers: {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type'
+            }
+        });
     }
 
     if (method !== 'POST') {
@@ -50,7 +73,7 @@ export default async function handler(req, res) {
 
     try {
         if (!genAI) {
-            throw new Error("Gemini API Key not configured.");
+            throw new Error("Gemini API Key not configured in environment.");
         }
 
         const { image, language = "English" } = body;
@@ -58,82 +81,41 @@ export default async function handler(req, res) {
             return send({ error: 'No image provided' }, 400);
         }
 
-        console.log(`📸 Received Base64 image for Gemini decoding. Language: ${language}`);
+        console.log(`📸 Image received. Language: ${language}`);
 
-        // Remove header if present
         const base64Image = image.replace(/^data:image\/\w+;base64,/, '');
 
-        // Define strict response schema
         const schema = {
             description: "List of menu items",
             type: SchemaType.ARRAY,
             items: {
                 type: SchemaType.OBJECT,
                 properties: {
-                    dish: {
-                        type: SchemaType.STRING,
-                        description: "Name of the dish",
-                        nullable: false,
-                    },
-                    price: {
-                        type: SchemaType.STRING,
-                        description: "Price of the dish",
-                        nullable: false,
-                    },
-                    description: {
-                        type: SchemaType.STRING,
-                        description: "Short appetizing description of the dish",
-                        nullable: false,
-                    },
+                    dish: { type: SchemaType.STRING, description: "Name of the dish", nullable: false },
+                    price: { type: SchemaType.STRING, description: "Price including currency", nullable: false },
+                    description: { type: SchemaType.STRING, description: "Brief tasty description", nullable: false },
                 },
                 required: ["dish", "price", "description"],
             },
         };
 
-        // Initialize models
-        const menuModel = genAI.getGenerativeModel({
-            model: "models/gemini-2.5-flash",
-            generationConfig: {
-                responseMimeType: "application/json",
-                responseSchema: schema,
-            }
+        const model = genAI.getGenerativeModel({
+            model: "gemini-1.5-flash",
+            generationConfig: { responseMimeType: "application/json", responseSchema: schema },
         });
 
-        const imageModel = genAI.getGenerativeModel({
-            model: "models/gemini-2.5-flash-image"
-        });
+        const prompt = `Decode this menu image into a JSON list. Translate descriptions into ${language}.`;
+        const result = await model.generateContent([
+            prompt,
+            { inlineData: { data: base64Image, mimeType: "image/jpeg" } }
+        ]);
 
-        const prompt = `
-        Analyze this menu image and identify the dishes listed.
-        
-        Important: Translate the 'dish' name and 'description' into ${language}.
-        If the menu is already in ${language}, keep it as is.
-        Ensure the 'price' is captured accurate to the image.
-        `;
+        const menuItems = JSON.parse(result.response.text());
+        console.log(`✅ Decoded ${menuItems.length} items.`);
 
-        const imagePart = {
-            inlineData: {
-                data: base64Image,
-                mimeType: "image/jpeg",
-            },
-        };
+        // Image Generation Model
+        const imageModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image" });
 
-        const result = await menuModel.generateContent([prompt, imagePart]);
-        const response = await result.response;
-        const text = response.text();
-
-        console.log("Gemini Structured Response:", text);
-
-        let menuItems = [];
-        try {
-            menuItems = JSON.parse(text);
-        } catch (e) {
-            console.error("Failed to parse Gemini JSON:", e);
-            return res.status(500).json({ error: "Failed to parse menu data from AI" });
-        }
-
-        // Generate images for each dish in parallel
-        console.log(`Generating images for ${menuItems.length} items...`);
         const itemPromises = menuItems.map(async (item) => {
             try {
                 const imagePrompt = `Realistic professional food photography of ${item.dish}: ${item.description}. Gourmet plating, high resolution, soft cinematic lighting, 4k, appetizing.`;
@@ -151,31 +133,19 @@ export default async function handler(req, res) {
                 if (!imageUrl) {
                     const blockReason = imageResponse.promptFeedback?.blockReason;
                     const finishReason = imageResponse.candidates?.[0]?.finishReason;
-                    const safetyRatings = imageResponse.candidates?.[0]?.safetyRatings;
-
-                    console.warn(`⚠️ Image generation failed for: ${item.dish}`);
-                    console.warn(`   - Block Reason: ${blockReason || 'N/A'}`);
-                    console.warn(`   - Finish Reason: ${finishReason || 'N/A'}`);
-                    if (safetyRatings) {
-                        console.warn(`   - Safety Ratings: ${JSON.stringify(safetyRatings)}`);
-                    }
-                    console.warn(`   - Full Model Response: ${JSON.stringify(imageResponse)}`);
+                    console.warn(`⚠️ No image for: ${item.dish} | Block: ${blockReason || 'N/A'} | Finish: ${finishReason || 'N/A'}`);
 
                     return {
                         ...item,
                         image: null,
-                        error: blockReason ? "Content blocked by safety filters" : "Image generation unavailable"
+                        error: blockReason ? "Content blocked" : "Generation unavailable"
                     };
                 }
 
                 return { ...item, image: imageUrl };
             } catch (imageError) {
                 console.error(`❌ Global error generating image for ${item.dish}:`, imageError);
-                return {
-                    ...item,
-                    image: null,
-                    error: "Generation failed"
-                };
+                return { ...item, image: null, error: "Generation failed" };
             }
         });
 

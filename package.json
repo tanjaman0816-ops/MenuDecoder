@@ -9,7 +9,11 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "api": "node local-api.js"
+    "api": "node local-api.js",
+    "netlify-dev": "netlify dev"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
