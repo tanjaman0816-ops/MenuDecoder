@@ -131,21 +131,44 @@ export default async function handler(req, res) {
                     }
                 }
 
+                if (!imageUrl) {
+                    const blockReason = imageResponse.promptFeedback?.blockReason;
+                    const finishReason = imageResponse.candidates?.[0]?.finishReason;
+                    const safetyRatings = imageResponse.candidates?.[0]?.safetyRatings;
+
+                    console.warn(`⚠️ Image generation failed for: ${item.dish}`);
+                    console.warn(`   - Block Reason: ${blockReason || 'N/A'}`);
+                    console.warn(`   - Finish Reason: ${finishReason || 'N/A'}`);
+                    if (safetyRatings) {
+                        console.warn(`   - Safety Ratings: ${JSON.stringify(safetyRatings)}`);
+                    }
+                    console.warn(`   - Full Model Response: ${JSON.stringify(imageResponse)}`);
+
+                    return {
+                        ...item,
+                        image: null,
+                        error: blockReason ? "Content blocked by safety filters" : "Image generation unavailable"
+                    };
+                }
+
                 return { ...item, image: imageUrl };
             } catch (imageError) {
-                console.error(`Failed to generate image for ${item.dish}:`, imageError);
-                return { ...item, image: null, error: imageError.message };
+                console.error(`❌ Global error generating image for ${item.dish}:`, imageError);
+                return {
+                    ...item,
+                    image: null,
+                    error: "Generation failed"
+                };
             }
         });
 
         const results = await Promise.all(itemPromises);
 
-        const searchErrors = results.filter(r => r.error).map(r => r.error);
         const hasImages = results.some(r => r.image);
 
         res.status(200).json({
             results,
-            searchWarning: !hasImages && searchErrors.length > 0 ? searchErrors[0] : null
+            searchWarning: !hasImages ? "Some images couldn't be generated at this time." : null
         });
 
     } catch (error) {
