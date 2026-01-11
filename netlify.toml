@@ -5,7 +5,14 @@
 [functions]
   directory = "api"
 
+# Redirect for API functions (specifically for v2 or older routing)
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
+  status = 200
+
+# Catch-all for SPA routing - must be LAST
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
   status = 200
