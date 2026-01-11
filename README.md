@@ -61,18 +61,6 @@ Menu Decoder is a responsive Progressive Web App (PWA) that instantly translates
 5.  **Open Browser**
     - Visit `http://localhost:5173`
 
-## Deployment
-
-### Deploy to Netlify
-
-1.  **Connect your repository** to a new site on Netlify.
-2.  **Configure Build Settings**:
-    - **Build command**: `npm run build`
-    - **Publish directory**: `dist`
-    - **Functions directory**: `api` (Already configured in `netlify.toml`)
-3.  **Environment Variables**:
-    - Add `GOOGLE_API_KEY` in Netlify Site Settings.
-
 ## Project Structure
 
 - `/src` - React frontend code.

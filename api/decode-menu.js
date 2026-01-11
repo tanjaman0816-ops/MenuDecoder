@@ -1,67 +1,42 @@
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 
 let genAI = null;
+if (apiKey) {
+    genAI = new GoogleGenerativeAI(apiKey);
+} else {
+    console.error("❌ GOOGLE_API_KEY is missing from environment variables.");
+}
 
-/**
- * Netlify Functions v2 Handler
- * Also supports Express via the 'res' argument in our local bridge
- */
-export default async function handler(req, resOrContext) {
-    // 1. Unified Request Handling
+export default async function handler(req, res) {
+    // 1. Unified Request Handling (Standard Request vs Express)
     const method = req.method || 'POST';
+    const body = req.json ? await req.json() : req.body;
 
-    // 2. Parse Body (Netlify v2 provides .json(), Express provides .body)
-    let body;
-    try {
-        body = req.json ? await req.json() : (req.body || {});
-    } catch (e) {
-        console.error("Failed to parse request body:", e);
-        body = {};
-    }
-
-    // 3. Environment Variable Initialization (Lazy)
-    // Netlify suggests initializing inside the handler for better reliability
-    if (!genAI) {
-        const apiKey = process.env.GOOGLE_API_KEY;
-        if (apiKey) {
-            genAI = new GoogleGenerativeAI(apiKey);
-        } else {
-            console.error("❌ GOOGLE_API_KEY is missing from environment variables.");
-        }
-    }
-
-    // 4. Helper to send response (CORS included)
+    // helper to send response
     const send = async (data, status = 200) => {
-        const headers = {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type'
-        };
-
-        // Express / Local Bridge
-        if (resOrContext && typeof resOrContext.status === 'function') {
-            return resOrContext.status(status).json(data);
+        if (res && res.status) {
+            return res.status(status).json(data);
         }
-
-        // Netlify / Standard Response
-        return new Response(JSON.stringify(data), { status, headers });
+        return new Response(JSON.stringify(data), {
+            status,
+            headers: { 'Content-Type': 'application/json' }
+        });
     };
 
-    // 5. CORS / OPTIONS handling
-    if (method === 'OPTIONS') {
-        if (resOrContext && typeof resOrContext.status === 'function') return resOrContext.status(200).end();
-        return new Response(null, {
-            status: 200, headers: {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type'
-            }
-        });
+    // CORS & Options
+    if (res && res.setHeader) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     }
 
-    if (method !== 'POST') {
-        return send({ error: 'Method Not Allowed' }, 405);
+    if (method === 'OPTIONS') {
+        if (res && res.status) return res.status(200).end();
+        return new Response(null, { status: 200 });
+    }
+
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
     try {
@@ -69,9 +44,9 @@ export default async function handler(req, resOrContext) {
             throw new Error("Gemini API Key not configured in environment.");
         }
 
-        const { image, language = "English" } = body;
+        const { image, language = "English" } = req.body; // Default to English
         if (!image) {
-            return send({ error: 'No image provided' }, 400);
+            return res.status(400).json({ error: 'No image provided' });
         }
 
         console.log(`📸 Image received. Language: ${language}`);
@@ -143,15 +118,16 @@ export default async function handler(req, resOrContext) {
         });
 
         const results = await Promise.all(itemPromises);
+
         const hasImages = results.some(r => r.image);
 
-        return send({
+        res.status(200).json({
             results,
             searchWarning: !hasImages ? "Some images couldn't be generated at this time." : null
         });
 
     } catch (error) {
-        console.error("❌ API handler error:", error);
-        return send({ error: error.message || 'Internal Server Error' }, 500);
+        console.error("Serverless Function Error:", error);
+        res.status(500).json({ error: "Processing failed: " + error.message });
     }
 }

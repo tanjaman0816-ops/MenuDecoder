@@ -41,7 +41,7 @@ const LandingPage = () => {
             setPreviewImage(compressedBase64);
 
             // 2. Send JSON to Serverless Function
-            const response = await fetch('/api/decode-menu', {
+            const response = await fetch('http://localhost:3000/api/decode-menu', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
