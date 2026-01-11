@@ -117,7 +117,13 @@ export default async function handler(req, res) {
             image: null
         }));
 
-        res.status(200).json({ results });
+        const searchErrors = results.filter(r => r.error).map(r => r.error);
+        const hasImages = results.some(r => r.image);
+
+        res.status(200).json({
+            results,
+            searchWarning: !hasImages && searchErrors.length > 0 ? searchErrors[0] : null
+        });
 
     } catch (error) {
         console.error("Serverless Function Error:", error);
