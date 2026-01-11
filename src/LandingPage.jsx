@@ -170,7 +170,7 @@ const LandingPage = () => {
                             <Loader2 size={64} color="hsl(var(--accent-gold))" className="animate-spin" />
                         </motion.div>
                         <h2 style={{ marginTop: '2rem', fontSize: '2rem' }}>Analyzing Menu...</h2>
-                        <p style={{ color: 'hsl(var(--text-secondary))' }}>Identifying dishes and translating to {language}...</p>
+                        <p style={{ color: 'hsl(var(--text-secondary))' }}>Identifying dishes and generating mouth-watering visuals...</p>
                     </div>
                 )}
 

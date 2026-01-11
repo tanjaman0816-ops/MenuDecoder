@@ -73,13 +73,17 @@ export default async function handler(req, res) {
             },
         };
 
-        // Using Gemini 2.5 Flash as confirmed by model list
-        const model = genAI.getGenerativeModel({
+        // Initialize models
+        const menuModel = genAI.getGenerativeModel({
             model: "models/gemini-2.5-flash",
             generationConfig: {
                 responseMimeType: "application/json",
                 responseSchema: schema,
             }
+        });
+
+        const imageModel = genAI.getGenerativeModel({
+            model: "models/gemini-2.5-flash-image"
         });
 
         const prompt = `
@@ -97,7 +101,7 @@ export default async function handler(req, res) {
             },
         };
 
-        const result = await model.generateContent([prompt, imagePart]);
+        const result = await menuModel.generateContent([prompt, imagePart]);
         const response = await result.response;
         const text = response.text();
 
@@ -111,11 +115,30 @@ export default async function handler(req, res) {
             return res.status(500).json({ error: "Failed to parse menu data from AI" });
         }
 
-        // Add null image placeholders
-        const results = menuItems.map(item => ({
-            ...item,
-            image: null
-        }));
+        // Generate images for each dish in parallel
+        console.log(`Generating images for ${menuItems.length} items...`);
+        const itemPromises = menuItems.map(async (item) => {
+            try {
+                const imagePrompt = `Realistic professional food photography of ${item.dish}: ${item.description}. Gourmet plating, high resolution, soft cinematic lighting, 4k, appetizing.`;
+                const imageResult = await imageModel.generateContent(imagePrompt);
+                const imageResponse = await imageResult.response;
+
+                let imageUrl = null;
+                if (imageResponse.candidates && imageResponse.candidates[0].content.parts) {
+                    const imagePart = imageResponse.candidates[0].content.parts.find(p => p.inlineData);
+                    if (imagePart) {
+                        imageUrl = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+                    }
+                }
+
+                return { ...item, image: imageUrl };
+            } catch (imageError) {
+                console.error(`Failed to generate image for ${item.dish}:`, imageError);
+                return { ...item, image: null, error: imageError.message };
+            }
+        });
+
+        const results = await Promise.all(itemPromises);
 
         const searchErrors = results.filter(r => r.error).map(r => r.error);
         const hasImages = results.some(r => r.image);
