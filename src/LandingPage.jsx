@@ -161,13 +161,13 @@ const LandingPage = () => {
                         justifyContent: 'center', alignItems: 'center', textAlign: 'center'
                     }}>
                         <motion.div
-                            key="home"
+                            key="loader"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0, y: -20 }}
                             transition={{ duration: 0.5 }}
                         >
-                            <Loader2 size={64} color="hsl(var(--accent-gold))" />
+                            <Loader2 size={64} color="hsl(var(--accent-gold))" className="animate-spin" />
                         </motion.div>
                         <h2 style={{ marginTop: '2rem', fontSize: '2rem' }}>Analyzing Menu...</h2>
                         <p style={{ color: 'hsl(var(--text-secondary))' }}>Identifying dishes and translating to {language}...</p>
