@@ -17,18 +17,35 @@ if (apiKey) {
 }
 
 export default async function handler(req, res) {
-    // Enable CORS for local testing/cross-origin
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    // 1. Unified Request Handling (Standard Request vs Express)
+    const method = req.method || 'POST';
+    const body = req.json ? await req.json() : req.body;
 
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
+    // helper to send response
+    const send = async (data, status = 200) => {
+        if (res && res.status) {
+            return res.status(status).json(data);
+        }
+        return new Response(JSON.stringify(data), {
+            status,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    };
+
+    // CORS & Options
+    if (res && res.setHeader) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     }
 
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method Not Allowed' });
+    if (method === 'OPTIONS') {
+        if (res && res.status) return res.status(200).end();
+        return new Response(null, { status: 200 });
+    }
+
+    if (method !== 'POST') {
+        return send({ error: 'Method Not Allowed' }, 405);
     }
 
     try {
@@ -36,9 +53,9 @@ export default async function handler(req, res) {
             throw new Error("Gemini API Key not configured.");
         }
 
-        const { image, language = "English" } = req.body; // Default to English
+        const { image, language = "English" } = body;
         if (!image) {
-            return res.status(400).json({ error: 'No image provided' });
+            return send({ error: 'No image provided' }, 400);
         }
 
         console.log(`📸 Received Base64 image for Gemini decoding. Language: ${language}`);
@@ -163,16 +180,15 @@ export default async function handler(req, res) {
         });
 
         const results = await Promise.all(itemPromises);
-
         const hasImages = results.some(r => r.image);
 
-        res.status(200).json({
+        return send({
             results,
             searchWarning: !hasImages ? "Some images couldn't be generated at this time." : null
         });
 
     } catch (error) {
-        console.error("Serverless Function Error:", error);
-        res.status(500).json({ error: "Processing failed: " + error.message });
+        console.error("❌ API handler error:", error);
+        return send({ error: error.message || 'Internal Server Error' }, 500);
     }
 }
